@@ -1,6 +1,9 @@
+# PYTHON_ARGCOMPLETE_OK
+
 import argparse
+import argcomplete
+import inquirer
 from rich_argparse import RichHelpFormatter
-from InquirerPy import inquirer
 
 import os
 import cv2
@@ -8,22 +11,60 @@ import cv2
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        prog="ubuntu-bootup-screen-customizer",
-        description="CLI to customize ubuntu-bootup-screen and login-screen.",
+        prog="bootup-screen-customizer",
+        description="""
+        CLI to customize bootup-screen and login-screen
+        on unix-systems using plymouth.
+        """,
         formatter_class=RichHelpFormatter,
     )
-    parser.add_argument("name")
-    parser.add_argument("--theme", required=True, choices=["default", "preinstalled", "customize"], default="default")
-    parser.add_argument("--test", required=False, action="store_true", help="Shows bootup-screen-visualisation, after you finished the configuration.")
+
+    argcomplete.autocomplete(parser)
     
+    parser.add_argument("name")
+    parser.add_argument("--theme",
+                        required=True,
+                        choices=[
+                            "default",
+                            "preinstalled",
+                            "customize"
+                            ],
+                        default="default",
+                        )
+    parser.add_argument("--test",
+                        required=False,
+                        action="store_true",
+                        help="""Shows bootup-screen-visualisation,
+                        after you finished the configuration."""
+                        )
+    parser.add_argument("--framecount",
+                        required=False,
+                        default=128,
+                        help="""
+                        Number of animationframes created
+                        when using customized theme.
+                        """
+                        )
+    parser.add_argument("-s", "--sourcepath",
+                        required=False,
+                        default=os.path.join(os.getcwd(), 'media'),
+                        help="""
+                        Sourcepath for customized animationsources.
+                        """
+                        )
     return parser.parse_args()
 
 
-
-def split_video_into_images(video_path, output_folder, num_frames=128):
+def create_resultfolder():
     # Create output folder if it doesn't exist
+    output_folder = os.path.join(os.getcwd(), 'results')
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
+
+
+def split_video_into_images(video_path: str, num_frames: int = 256):
+
+    output_folder = create_resultfolder()
 
     # Open the video file
     cap = cv2.VideoCapture(video_path)
@@ -52,53 +93,110 @@ def split_video_into_images(video_path, output_folder, num_frames=128):
     # Release the video capture object
     cap.release()
 
-def configure_plymouth_theme(name: str = "ubuntu-logosu", mode: str = "default"):
+
+def create_darkened_animation(input_path, theme_name, inverse: bool = False):
+
+    output_folder = create_resultfolder()
+
+    original_image = cv2.imread(input_path)
+    # Generate 256 darkened versions
+    for i in range(256):
+        if inverse:
+            pass
+
+        darkness_factor = i / 255.0
+
+        darkened_image = original_image * (1 - darkness_factor)
+        darkened_image = darkened_image.clip(0, 255).astype('uint8')  # Ensure pixel values are within the valid range (0 to 255)
+
+        output_path = os.path.join(output_folder, f"{theme_name}{i}.png")
+        cv2.imwrite(output_path, darkened_image)
+
+
+def configure_plymouth_theme(
+        name: str = "ubuntu-logosu",
+        mode: str = "default"):
+
     if name:
         input()
     pass
 
-def main():
-    args = parse_arguments()
-    
-    if args.mode == "default":
+
+def main(cli_args):
+    if cli_args.theme == "default":
         # take default-template ubuntu-logosu
         pass
-    
-    elif args.mode == "preinstalled":
+
+    elif cli_args.theme == "preinstalled":
         # let user select preinstalled themes
-        
+
         themes = []
-        themes_dir = os.path.join(os.getcwd(),'themes')
-        
+        themes_dir = os.path.join(os.getcwd(), 'themes')
+
         # read available themes from filesystem
-        for t in  os.listdir(themes_dir):
-            if os.path.isdir(os.path.join(themes_dir,t)):
+        for t in os.listdir(themes_dir):
+            if os.path.isdir(os.path.join(themes_dir, t)):
                 themes.append(t)
 
-        selection = wait_for_user_selection(message="Choose bootup-splash-theme", choices=themes)        
+        selection = wait_for_user_selection(
+            message="Choose bootup-splash-theme",
+            choices=themes
+            )
 
-    elif args.mode == "customize":
+    elif cli_args.theme == "customize":
         # ask for user-selection: create animation from video vs image
-        selection = wait_for_user_selection(message="Choose bootup-splashscreen-theme:", choices=["video", "image"])
+        selection = wait_for_user_selection(
+            message="Choose bootup-splashscreen-theme: ",
+            choices=["video", "image"]
+            )
 
-        # ask user for filepath & validate            
-        file = input("Please provide filepath")
+        # ask user for found media from --sourcepath-flag
+        file = wait_for_user_selection(
+            message="Select media-source to create animation: ",
+            choices=os.listdir(cli_args.sourcepath)
+            )
         validate(file, type=selection)
 
         # create animation
-        if selection ==  "image":
+        if selection == "image":
+
             # ask user for image-animation-mode
-            # dark-to-light
-            # light-to-dark
-            pass
+            selection = wait_for_user_selection(
+                message="Animate given image from",
+                choices=["dark to bright", "bright to dark"]
+            )
+
+            if selection == "":
+                create_darkened_animation(
+                    input_path=file,
+                    theme_name=cli_args.name,
+                    inverse=True
+                )
+
+            else:  # bright to dark
+                create_darkened_animation(
+                    input_path=file,
+                    theme_name=cli_args.name,
+                )
+
         elif selection == "video":
-            outputfolder = os.path.join(os.getcwd(), 'results', args.name)
-            split_video_into_images(num_frames=256, video_path=file, output_folder=outputfolder)
-        
-        
+            outputfolder = os.path.join(
+                os.getcwd(),
+                'results',
+                cli_args.name
+                )
+
+            split_video_into_images(
+                num_frames=256,
+                video_path=file,
+                output_folder=outputfolder
+                )
+
+
 def validate(file: str, type: str):
+    print(file)
     assert os.path.isfile(file)
-    
+
     if type == "image":
         assert file.lower().endswith(('.png', '.jpg', '.jpeg'))
     elif type == "video":
@@ -115,5 +213,6 @@ def wait_for_user_selection(message: str, choices: []):
     ]
     return inquirer.prompt(questions)["var"]
 
+
 if __name__ == "__main__":
-    main()
+    main(parse_arguments())
