@@ -4,9 +4,16 @@ import argparse
 import argcomplete
 import inquirer
 from rich_argparse import RichHelpFormatter
+from alive_progress import alive_bar
 
 import os
+import shutil
+import toml
+import customizer_config
+
 import cv2
+
+
 
 
 def parse_arguments():
@@ -22,24 +29,18 @@ def parse_arguments():
     argcomplete.autocomplete(parser)
     
     parser.add_argument("name")
-    parser.add_argument("--theme",
-                        required=True,
-                        choices=[
-                            "default",
-                            "preinstalled",
-                            "customize"
-                            ],
-                        default="default",
-                        )
-    parser.add_argument("--test",
+    
+    parser.add_argument("--apply",
                         required=False,
-                        action="store_true",
-                        help="""Shows bootup-screen-visualisation,
-                        after you finished the configuration."""
+                        action="store_false",
+                        help="""Shows lists of installed/created themes
+                        to the user to select one as next-bootup-theme."""
                         )
+    
     parser.add_argument("--framecount",
                         required=False,
                         default=128,
+                        type=int,
                         help="""
                         Number of animationframes created
                         when using customized theme.
@@ -56,61 +57,87 @@ def parse_arguments():
 
 
 def create_resultfolder():
-    # Create output folder if it doesn't exist
     output_folder = os.path.join(os.getcwd(), 'results')
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
+    return output_folder
 
 
-def split_video_into_images(video_path: str, num_frames: int = 256):
+def create_theme(name: str):
+    theme_dir = os.path.join(customizer_config.PLYMOUTH_DIR, 'themes', name)
+    os.mkdir(theme_dir)
 
+    shutil.move(
+        src=os.path.join(os.getcwd(), 'results'),
+        dest=theme_dir
+    )
+
+
+def apply_theme(name: str):
+    # edit /usr/share/plymouth/default.plymouth
+    default_path = os.path.join(customizer_config.PLYMOUTH_DIR, 'default.plymouth')
+    with open(default_path, 'r') as file:
+        data = toml.load(file)
+
+    print(data)
+
+    if 'ImageDir' in data:
+        data['ImageDir'] = os.path.join(customizer_config.PLYMOUTH_DIR, 'themes', name)
+    else:
+        print("Plymouth-config not valid.")
+
+    # update config
+    with open(default_path, 'w') as file:
+        toml.dump(data, file)
+
+
+def split_video_into_images(video_path: str, framecount: int = 128):
     output_folder = create_resultfolder()
 
-    # Open the video file
     cap = cv2.VideoCapture(video_path)
-
-    # Get the total number of frames in the video
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    frame_interval = max(1, total_frames // framecount)
 
-    # Calculate the frame interval to capture 128 frames
-    frame_interval = max(1, total_frames // num_frames)
+    with alive_bar(framecount) as bar:
+        for i in range(0, total_frames, frame_interval):
+            cap.set(cv2.CAP_PROP_POS_FRAMES, i)
+            ret, frame = cap.read()
 
-    # Iterate through frames and save images
-    for i in range(0, total_frames, frame_interval):
-        # Set the frame position
-        cap.set(cv2.CAP_PROP_POS_FRAMES, i)
+            if not ret:
+                break
 
-        # Read the frame
-        ret, frame = cap.read()
+            image_path = os.path.join(output_folder, f"animation-{i}.jpg")
+            cv2.imwrite(image_path, frame)
 
-        if not ret:
-            break
-
-        # Save the frame as an image
-        image_path = os.path.join(output_folder, f"frame_{i}.png")
-        cv2.imwrite(image_path, frame)
-
+            bar()
     # Release the video capture object
     cap.release()
 
 
-def create_darkened_animation(input_path, theme_name, inverse: bool = False):
+def create_darkened_animation(input_path, theme_name, framecount: int = 128, inverse: bool = False):
 
     output_folder = create_resultfolder()
 
     original_image = cv2.imread(input_path)
-    # Generate 256 darkened versions
-    for i in range(256):
-        if inverse:
-            pass
 
-        darkness_factor = i / 255.0
+    # Generate darker versions of source_picture
+    with alive_bar(framecount) as bar:
+        for i in range(framecount):
+            if inverse:
+                darkness_factor = i / float(framecount-1)
+                print(darkness_factor)
+                darkened_image = original_image * (0 + darkness_factor)
+                darkened_image = darkened_image.clip(0, 255).astype('uint8')  # pxls within valid rgb-range (0..255)
+            else:
+                darkness_factor = i / float(framecount-1)
+                darkened_image = original_image * (1 - darkness_factor)
+                darkened_image = darkened_image.clip(0, 255).astype('uint8')  # pxls within valid rgb-range (0..255)
 
-        darkened_image = original_image * (1 - darkness_factor)
-        darkened_image = darkened_image.clip(0, 255).astype('uint8')  # Ensure pixel values are within the valid range (0 to 255)
+            output_path = os.path.join(output_folder, f"{theme_name}-{i}.png")
+            cv2.imwrite(output_path, darkened_image)
 
-        output_path = os.path.join(output_folder, f"{theme_name}{i}.png")
-        cv2.imwrite(output_path, darkened_image)
+            # update processbar
+            bar()
 
 
 def configure_plymouth_theme(
@@ -123,15 +150,10 @@ def configure_plymouth_theme(
 
 
 def main(cli_args):
-    if cli_args.theme == "default":
-        # take default-template ubuntu-logosu
-        pass
-
-    elif cli_args.theme == "preinstalled":
+    themes_dir = os.path.join(customizer_config.PLYMOUTH_DIR, 'themes')
+    if cli_args.sourcepath == themes_dir:
         # let user select preinstalled themes
-
         themes = []
-        themes_dir = os.path.join(os.getcwd(), 'themes')
 
         # read available themes from filesystem
         for t in os.listdir(themes_dir):
@@ -143,22 +165,24 @@ def main(cli_args):
             choices=themes
             )
 
-    elif cli_args.theme == "customize":
-        # ask for user-selection: create animation from video vs image
+    else:
+        os.path.isdir(cli_args.sourcepath)
+        mediafiles = []
+
+        # read available mediafiles from filesystem
+        for t in os.listdir(cli_args.sourcepath):
+            if os.path.isdir(cli_args.sourcepath):
+                mediafiles.append(t)
+
         selection = wait_for_user_selection(
-            message="Choose bootup-splashscreen-theme: ",
-            choices=["video", "image"]
+            message="Choose bootup-splash-theme",
+            choices=mediafiles
             )
 
-        # ask user for found media from --sourcepath-flag
-        file = wait_for_user_selection(
-            message="Select media-source to create animation: ",
-            choices=os.listdir(cli_args.sourcepath)
-            )
-        validate(file, type=selection)
+        filetype = validate(os.path.join(cli_args.sourcepath, selection))
 
         # create animation
-        if selection == "image":
+        if filetype == "image":
 
             # ask user for image-animation-mode
             selection = wait_for_user_selection(
@@ -168,18 +192,18 @@ def main(cli_args):
 
             if selection == "":
                 create_darkened_animation(
-                    input_path=file,
+                    input_path=cli_args.sourcepath,
                     theme_name=cli_args.name,
                     inverse=True
                 )
 
             else:  # bright to dark
                 create_darkened_animation(
-                    input_path=file,
+                    input_path=cli_args.sourcepath,
                     theme_name=cli_args.name,
                 )
 
-        elif selection == "video":
+        elif filetype == "video":
             outputfolder = os.path.join(
                 os.getcwd(),
                 'results',
@@ -187,20 +211,20 @@ def main(cli_args):
                 )
 
             split_video_into_images(
-                num_frames=256,
-                video_path=file,
-                output_folder=outputfolder
+                framecount=cli_args.framecount,
+                video_path=cli_args.sourcepath,
                 )
 
 
-def validate(file: str, type: str):
+def validate(file: str):
     print(file)
     assert os.path.isfile(file)
-
-    if type == "image":
-        assert file.lower().endswith(('.png', '.jpg', '.jpeg'))
-    elif type == "video":
-        assert file.lower().endswith(('.mp4', '.avi', '.mov'))
+    if file.lower().endswith(('.png', '.jpg', '.jpeg')):
+        return "image"
+    elif file.lower().endswith(('.mp4', '.avi', '.mov')):
+        return "video"
+    else:
+        return None
 
 
 def wait_for_user_selection(message: str, choices: []):
