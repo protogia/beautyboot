@@ -1,4 +1,4 @@
-# bootup-screen-cusomizer
+# beautyboot
 
 ## Info
 Works on all unix-systems using plymouth for bootup-configuration
@@ -26,9 +26,6 @@ sudo activate-global-python-argcomplete
 ```bash
 # activate venv
 poetry shell
-
-# set preeinstalled theme and show visualisation via --test 
-python -m beautyboot --theme preinstalled --test 
 
 # create custom theme called "mytheme" and set frame-count
 python -m beautyboot --framecount 128 --sourcepath ~/Download/mytheme-nice-picture.jpg --with-login-logo mytheme
