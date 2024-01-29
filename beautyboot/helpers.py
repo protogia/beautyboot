@@ -4,7 +4,7 @@ import pathlib
 import shutil
 
 # custom
-import beautyboot_conf
+from beautyboot import beautyboot_conf
 
 
 def create_resultfolder(theme_name: str):

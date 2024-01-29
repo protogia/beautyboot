@@ -14,7 +14,7 @@ import cv2
 
 # custom
 from beautyboot import beautyboot_conf
-import helpers
+from beautyboot import helpers
 
 
 def parse_arguments():
