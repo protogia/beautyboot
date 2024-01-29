@@ -30,6 +30,7 @@ requires-python = "^3.8.1"
 [project.scripts]
 beautyboot = "beautyboot.__main__"
 
+[tool.poetry.plugins] # Optional super table
 [tool.poetry.plugins."beautyboot"]
 beautyboot = "beautyboot.__main__:main"
 
