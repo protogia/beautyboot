@@ -1,19 +1,20 @@
 # PYTHON_ARGCOMPLETE_OK
 
+# dependencies
 import argparse
 import argcomplete
 import inquirer
 from rich_argparse import RichHelpFormatter
 from alive_progress import alive_bar
-
 import os
-import pathlib
 import shutil
 import readline
 import toml
 import cv2
 
+# custom
 from beautyboot import beautyboot_conf
+import helpers
 
 
 def parse_arguments():
@@ -71,39 +72,6 @@ def parse_arguments():
                         )
 
     return parser.parse_args()
-
-
-def create_resultfolder(theme_name: str):
-    output_folder = os.path.join(
-        os.getcwd(),
-        'results',
-        theme_name)
-
-    pathlib.Path.mkdir(
-        pathlib.Path(output_folder),
-        parents=True,
-        exist_ok=True
-        )
-
-    return output_folder
-
-
-def create_theme(theme_name: str):
-    theme_dir = os.path.join(
-        beautyboot_conf.PLYMOUTH_DIR,
-        'themes',
-        theme_name)
-
-    os.mkdir(theme_dir)
-
-    shutil.move(
-        src=os.path.join(
-                os.getcwd(),
-                'results',
-                theme_name
-            ),
-        dest=theme_dir
-    )
 
 
 def apply_theme(name: str, theme_name: str):
@@ -172,7 +140,7 @@ def create_animation_from_video(
         framecount: int = 128
         ):
 
-    output_folder = create_resultfolder(theme_name)
+    output_folder = helpers.create_resultfolder(theme_name)
 
     cap = cv2.VideoCapture(video_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -207,7 +175,7 @@ def create_animation_from_image(
         mode: str = "light-to-dark"
         ):
 
-    output_folder = create_resultfolder(theme_name)
+    output_folder = helpers.create_resultfolder(theme_name)
     original_image = cv2.imread(input_path)
 
     # Generate darker versions of source_picture
@@ -263,7 +231,7 @@ def main(cli_args):
 
             # read available mediafiles from filesystem
             for t in os.listdir(cli_args.sourcepath):
-                if validate(t) is not None:
+                if helpers.validate(t) is not None:
                     mediafiles.append(t)
 
             selection = wait_for_user_selection(
@@ -276,7 +244,7 @@ def main(cli_args):
             dest_file = cli_args.sourcepath
 
         # create animation
-        filetype = validate(dest_file)
+        filetype = helpers.validate(dest_file)
         if filetype == "image":
 
             selection = wait_for_user_selection(
@@ -350,17 +318,8 @@ def main(cli_args):
         check = cv2.imwrite(dst, resized)
         if check:
             print("Successfully created login-logo.")
-
-
-def validate(file: str):
-    # print(file)
-    assert os.path.isfile(file)
-    if file.lower().endswith(('.png', '.jpg', '.jpeg')):
-        return "image"
-    elif file.lower().endswith(('.mp4', '.avi', '.mov', '.gif')):
-        return "video"
-    else:
-        return None
+        else:
+            print("Failed to create login-logo.")
 
 
 def wait_for_user_selection(message: str, choices: []):
