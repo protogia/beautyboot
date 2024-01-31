@@ -9,7 +9,7 @@ sudo activate-global-python-argcomplete
 # create entrypoint-bash-script to run from commandline
 read -r -d '' b_content <<EOF
 #!/bin/bash
-$HOME/.local/bin/poetry run python -m beautyboot
+$HOME/.local/bin/poetry run -C $PWD python -m beautyboot
 EOF
 
 echo $b_content | sudo tee /opt/beautyboot
