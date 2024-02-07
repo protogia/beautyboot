@@ -12,6 +12,7 @@ import readline
 import toml
 import cv2
 import time
+import pretty_errors
 
 # custom
 from beautyboot import beautyboot_conf
@@ -224,22 +225,24 @@ def main(cli_args):
     themes_dir = os.path.join(beautyboot_conf.PLYMOUTH_DIR, 'themes')
 
     if cli_args.youtube:
-        video_length, video_title, download_path = youtube.download(
-            youtube_url=cli_args.youtube
-            )
-
+        with alive_bar() as bar:
+            video_length, video_title, download_path = youtube.download(
+                url=cli_args.youtube
+                )
+            bar()
+            
         if video_length > 0:  # valid
 
             # ask user for timestamps to cut video
             start_invalid = True
             end_invalid = True        
             start = time.strptime(
-                string="00:00:00",
-                format="%H:%M:%S"
+                "00:00:00",
+                "%H:%M:%S"
             )
             end = time.strptime(
-                string="00:00:00",
-                format="%H:%M:%S"
+                "00:00:00",
+                "%H:%M:%S"
             )
 
             seconds = end.tm_hour*3600+end.tm_min*60+end.tm_sec           
@@ -251,8 +254,8 @@ def main(cli_args):
 
                     try:
                         start = time.strptime(
-                            string=starttimestamp,
-                            format="%H:%M:%S"
+                            starttimestamp,
+                            "%H:%M:%S"
                         )
                         start_invalid = False
                     except Exception as e:
@@ -265,8 +268,8 @@ def main(cli_args):
 
                     try:
                         end = time.strptime(
-                            string=endtimestamp,
-                            format="%H:%M:%S"
+                            endtimestamp,
+                            "%H:%M:%S"
                         )
                         end_invalid = False
                     except Exception as e:

@@ -1,7 +1,7 @@
 # dependencies
 from pytube import YouTube
-from time import time
-from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
+import time
+from moviepy.editor import VideoFileClip
 import os
 import traceback
 
@@ -22,21 +22,25 @@ def download(
     yt = YouTube(url)
 
     stream = yt.streams.get_highest_resolution()
-    stream.download(output_path=YT_DOWNLOAD_PATH, filename=yt.title)
+    stream.download(
+        output_path=YT_DOWNLOAD_PATH,
+        filename=f"{yt.title}.mp4"
+    )
 
     print(f"Downloaded: {yt.title}")
 
-    return yt.length, yt.title, YT_DOWNLOAD_PATH
+    return yt.length, f"{yt.title}.mp4", YT_DOWNLOAD_PATH
 
 
 def cut_video(start_timestamp, end_timestamp, output_path):
+    t1 = time.strftime("%H:%M:%S", start_timestamp)
+    t2 = time.strftime("%H:%M:%S", end_timestamp)
+    
     try:
-        ffmpeg_extract_subclip(
-            output_path,
-            start_timestamp,
-            end_timestamp,
-            targetname=output_path
-            )
+        clip = VideoFileClip(output_path, audio=False)
+        clip = clip.subclip(t1, t2)
+        clip.write_videofile(output_path)
+
         return True
     except Exception as e:
         traceback.print_exc(e)
