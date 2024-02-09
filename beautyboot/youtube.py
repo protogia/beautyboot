@@ -1,9 +1,9 @@
 # dependencies
 from pytube import YouTube
 import time
-from moviepy.editor import VideoFileClip
+# from moviepy.editor import VideoFileClip
 import os
-import traceback
+from moviepy.video.io.VideoFileClip import VideoFileClip
 
 # custom
 
@@ -12,6 +12,10 @@ YT_DOWNLOAD_PATH = os.path.join(
     'results',
     'yt'
 )
+
+
+def get_meta(url: str):
+    return YouTube(url)
 
 
 def download(
@@ -28,19 +32,14 @@ def download(
     )
 
     print(f"Downloaded: {yt.title}")
+    return True
 
-    return yt.length, f"{yt.title}.mp4", YT_DOWNLOAD_PATH
 
-
-def cut_video(start_timestamp, end_timestamp, output_path):
+def cut_video(start_timestamp, end_timestamp, output_filepath):
     t1 = time.strftime("%H:%M:%S", start_timestamp)
     t2 = time.strftime("%H:%M:%S", end_timestamp)
-    
-    try:
-        clip = VideoFileClip(output_path, audio=False)
-        clip = clip.subclip(t1, t2)
-        clip.write_videofile(output_path)
 
-        return True
-    except Exception as e:
-        traceback.print_exc(e)
+    clip = VideoFileClip(output_filepath).subclip(t1, t2)
+    clip.write_videofile(output_filepath, codec='libx264')
+
+    return True

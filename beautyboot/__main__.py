@@ -19,6 +19,7 @@ from beautyboot import beautyboot_conf
 from beautyboot import helpers
 from beautyboot import youtube
 
+
 def parse_arguments():
     parser = argparse.ArgumentParser(
         prog="bootup-screen-customizer",
@@ -157,20 +158,24 @@ def create_animation_from_video(
     cap = cv2.VideoCapture(video_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     frame_interval = max(1, total_frames // framecount)
-    counter = 0
-    with alive_bar(framecount) as bar:
-        for i in range(0, total_frames, frame_interval):
 
+    counter = 0
+    print(total_frames, frame_interval, framecount)
+    with alive_bar(framecount) as bar:
+        for i in range(0, framecount, frame_interval):
             cap.set(cv2.CAP_PROP_POS_FRAMES, i)
             ret, frame = cap.read()
 
             if not ret:
                 break
 
+            # Use f-strings for better readability
             image_path = os.path.join(
-                output_folder,
-                f"animation-{counter}.jpg")
-            cv2.imwrite(image_path, frame)
+                    output_folder,
+                    f"animation-{counter}.jpg"
+                )
+
+            cv2.imwrite(str(image_path), frame)
 
             # progress
             counter += 1
@@ -225,17 +230,21 @@ def main(cli_args):
     themes_dir = os.path.join(beautyboot_conf.PLYMOUTH_DIR, 'themes')
 
     if cli_args.youtube:
-        with alive_bar() as bar:
-            video_length, video_title, download_path = youtube.download(
-                url=cli_args.youtube
-                )
-            bar()
-            
+        yt = youtube.get_meta(url=cli_args.youtube)
+
+        video_length = yt.length
+        download_path = os.path.join(
+            os.getcwd(),
+            "results",
+            "yt",
+            f"{yt.title}.mp4"
+        )
+
         if video_length > 0:  # valid
 
             # ask user for timestamps to cut video
             start_invalid = True
-            end_invalid = True        
+            end_invalid = True
             start = time.strptime(
                 "00:00:00",
                 "%H:%M:%S"
@@ -247,9 +256,10 @@ def main(cli_args):
 
             seconds = end.tm_hour*3600+end.tm_min*60+end.tm_sec           
             while end <= start or seconds > video_length:
-
                 while start_invalid:
-                    print("Please provide a valid START-timestamp formated like HH:MM:SS")
+                    print("""
+                        Please provide a valid START-timestamp
+                        formated like HH:MM:SS""")
                     starttimestamp = input()
 
                     try:
@@ -263,7 +273,9 @@ def main(cli_args):
                         pass
 
                 while end_invalid:
-                    print("Please provide a valid END-timestamp formated like HH:MM:SS")
+                    print("""
+                          Please provide a valid END-timestamp
+                          formated like HH:MM:SS""")
                     endtimestamp = input()
 
                     try:
@@ -278,26 +290,30 @@ def main(cli_args):
 
                 # recalc total seconds
                 seconds = end.tm_hour*3600+end.tm_min*60+end.tm_sec
-            
-            res = youtube.cut_video(
+
+            res = youtube.download(
+                url=cli_args.youtube,
                 start_timestamp=start,
-                end_timestamp=end,
-                output_path=os.path.join(
-                    download_path,
-                    video_title
-                )
+                end_timestamp=end
             )
             
             if res:
-                print("Successfully cutted video output")
-                create_animation_from_video(
-                    video_path=os.path.join(
-                        download_path,
-                        video_title
-                    ),
-                    theme_name=cli_args.name,
-                    framecount=cli_args.framecount
+                # with alive_bar() as bar:
+                res = youtube.cut_video(
+                    output_filepath=download_path,
+                    start_timestamp=start,
+                    end_timestamp=end,
                 )
+                    
+                # bar()
+
+                if res:
+                    create_animation_from_video(
+                        video_path=os.path.join(
+                            download_path,
+                        ),
+                        theme_name=cli_args.name,
+                    )
 
     else:
         if cli_args.sourcepath == themes_dir:
