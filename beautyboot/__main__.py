@@ -48,6 +48,7 @@ def parse_arguments():
 
     parser.add_argument("-s", "--sourcepath",
                         required=False,
+                        type=str,
                         default=os.path.join(os.getcwd(), 'media'),
                         help="""
                         Sourcepath for customized animationsources.
@@ -228,6 +229,9 @@ def configure_plymouth_theme(
 
 def main(cli_args):
     themes_dir = os.path.join(beautyboot_conf.PLYMOUTH_DIR, 'themes')
+
+    if (cli_args.youtube and cli_args.sourcepath != os.path.join(os.getcwd(), "media")):
+        raise argparse.ArgumentError(None, "Flag --youtube and option --sourcepath <path/to/defined/source> cannot be used together.")
 
     if cli_args.youtube:
         yt = youtube.get_meta(url=cli_args.youtube)
