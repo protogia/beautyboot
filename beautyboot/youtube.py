@@ -39,7 +39,7 @@ def cut_video(start_timestamp, end_timestamp, output_filepath):
     t1 = time.strftime("%H:%M:%S", start_timestamp)
     t2 = time.strftime("%H:%M:%S", end_timestamp)
 
-    clip = VideoFileClip(output_filepath).subclip(t1, t2)
-    clip.write_videofile(output_filepath, codec='libx264')
+    clip = VideoFileClip(output_filepath, audio=False).subclip(t1, t2)
+    clip.write_videofile(output_filepath)
 
     return True
