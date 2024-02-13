@@ -16,13 +16,17 @@ sudo ./install.sh # creates venv, an entrypoint-script in /opt/ and link in /usr
 
 ## run
 
+Create custom theme from local image called ***mytheme*** and set frame-count
+
 ```bash
-# create custom theme called "mytheme" and set frame-count
 beautyboot --framecount 128 --sourcepath ~/Download/mytheme-nice-picture.jpg --with-login-logo mytheme
 ```
 
-## todos
+Create custom theme from given youtube-URL called ***myyt*** and set frame-count
 
-- add visualisation of created animation
-- add more customization-options for plymouth-config
-- upload on pip 
+```bash
+beautyboot --framecount 100 --youtube <https://youtube-url-of-video> --with-login-logo myyt
+# CLI will ask you for start-timestamp & end-timestamp during the process ... 
+```
+
+
