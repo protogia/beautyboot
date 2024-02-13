@@ -1,11 +1,9 @@
 # dependencies
 from pytube import YouTube
 import time
-# from moviepy.editor import VideoFileClip
 import os
-from moviepy.video.io.VideoFileClip import VideoFileClip
+import subprocess
 
-# custom
 
 YT_DOWNLOAD_PATH = os.path.join(
     os.getcwd(),
@@ -35,11 +33,42 @@ def download(
     return True
 
 
-def cut_video(start_timestamp, end_timestamp, output_filepath):
+def cut_video(start_timestamp, end_timestamp, input_filepath):
     t1 = time.strftime("%H:%M:%S", start_timestamp)
     t2 = time.strftime("%H:%M:%S", end_timestamp)
 
-    clip = VideoFileClip(output_filepath, audio=False).subclip(t1, t2)
-    clip.write_videofile(output_filepath)
+    filename_with_extension = os.path.basename(input_filepath)
+    filename, extension = os.path.splitext(filename_with_extension)
 
-    return True
+    output_filepath = os.path.join(
+        os.getcwd(),
+        'results',
+        'yt',
+        f"CUTTED_{filename}.mp4"
+    )
+
+    command = [
+        'ffmpeg',
+        '-ss', t1,
+        '-to', t2,
+        '-i', input_filepath,
+        # '-c', 'copy',
+        output_filepath
+    ]
+
+    # Run the ffmpeg command
+    try:
+        subprocess.run(command, check=True)
+        print(f"Subclip saved to {output_filepath}")
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error cutting video: {e}")
+
+    # delete source
+    try:
+        os.remove(input_filepath)
+        print(f"Source '{input_filepath}' has been deleted successfully.")
+    except OSError as e:
+        print(f"Error: {e}")
+
+    return output_filepath
