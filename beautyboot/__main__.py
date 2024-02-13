@@ -261,9 +261,7 @@ def main(cli_args):
             seconds = end.tm_hour*3600+end.tm_min*60+end.tm_sec           
             while end <= start or seconds > video_length:
                 while start_invalid:
-                    print("""
-                        Please provide a valid START-timestamp
-                        formated like HH:MM:SS""")
+                    print("Please provide a valid START-timestamp formated like HH:MM:SS")
                     starttimestamp = input()
 
                     try:
@@ -277,9 +275,7 @@ def main(cli_args):
                         pass
 
                 while end_invalid:
-                    print("""
-                          Please provide a valid END-timestamp
-                          formated like HH:MM:SS""")
+                    print("Please provide a valid END-timestamp formated like HH:MM:SS")
                     endtimestamp = input()
 
                     try:
@@ -303,18 +299,18 @@ def main(cli_args):
             
             if res:
                 # with alive_bar() as bar:
-                res = youtube.cut_video(
-                    output_filepath=download_path,
+                cutting_output_filepath = youtube.cut_video(
+                    input_filepath=download_path,
                     start_timestamp=start,
                     end_timestamp=end,
                 )
                     
                 # bar()
 
-                if res:
+                if cutting_output_filepath is not None:
                     create_animation_from_video(
                         video_path=os.path.join(
-                            download_path,
+                            cutting_output_filepath,
                         ),
                         theme_name=cli_args.name,
                     )
