@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "beautyboot"
-version = "0.1.0"
+version = "0.1.1"
 description = "A simple tool to customize your bootupscreen on unix-systems using plymouth"
 authors = ["protogia"]
 packages = [
@@ -17,7 +17,8 @@ inquirer = "^3.2.1"
 argcomplete = "^3.2.1"
 toml = "^0.10.2"
 alive-progress = "^3.1.5"
-
+pytube = "^15.0.0"
+pretty_errors = "1.2.25"
 
 [tool.black]
 line-length = 88

@@ -19,3 +19,10 @@ sudo chmod +x /opt/beautyboot
 
 # symlink it
 sudo ln -s /opt/beautyboot /usr/local/bin/beautyboot
+
+# install ffmpeg
+if $(ffmpeg -version | grep "ffmpeg version"); then
+    echo "ffmpeg is already installed."
+else
+    sudo snap install ffmpeg -y
+fi

@@ -11,10 +11,13 @@ import shutil
 import readline
 import toml
 import cv2
+import time
+import pretty_errors
 
 # custom
 from beautyboot import beautyboot_conf
 from beautyboot import helpers
+from beautyboot import youtube
 
 
 def parse_arguments():
@@ -45,9 +48,20 @@ def parse_arguments():
 
     parser.add_argument("-s", "--sourcepath",
                         required=False,
+                        type=str,
                         default=os.path.join(os.getcwd(), 'media'),
                         help="""
                         Sourcepath for customized animationsources.
+                        """
+                        )
+
+    parser.add_argument("-y", "--youtube",
+                        required=False,
+                        type=str,
+                        help="""
+                        Youtube-URL to create an animation from.
+                        If provided URL is valid, you'll get asked for 
+                        start-timestamp and end-timestamp
                         """
                         )
 
@@ -145,20 +159,24 @@ def create_animation_from_video(
     cap = cv2.VideoCapture(video_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     frame_interval = max(1, total_frames // framecount)
-    counter = 0
-    with alive_bar(framecount) as bar:
-        for i in range(0, total_frames, frame_interval):
 
+    counter = 0
+    print(total_frames, frame_interval, framecount)
+    with alive_bar(framecount) as bar:
+        for i in range(0, framecount, frame_interval):
             cap.set(cv2.CAP_PROP_POS_FRAMES, i)
             ret, frame = cap.read()
 
             if not ret:
                 break
 
+            # Use f-strings for better readability
             image_path = os.path.join(
-                output_folder,
-                f"animation-{counter}.jpg")
-            cv2.imwrite(image_path, frame)
+                    output_folder,
+                    f"animation-{counter}.jpg"
+                )
+
+            cv2.imwrite(str(image_path), frame)
 
             # progress
             counter += 1
@@ -211,74 +229,161 @@ def configure_plymouth_theme(
 
 def main(cli_args):
     themes_dir = os.path.join(beautyboot_conf.PLYMOUTH_DIR, 'themes')
-    if cli_args.sourcepath == themes_dir:
-        # let user select preinstalled themes
 
-        # read available themes from filesystem
-        themes = []
-        for t in os.listdir(themes_dir):
-            if os.path.isdir(os.path.join(themes_dir, t)):
-                themes.append(t)
+    if (cli_args.youtube and cli_args.sourcepath != os.path.join(os.getcwd(), "media")):
+        raise argparse.ArgumentError(None, "Flag --youtube and option --sourcepath <path/to/defined/source> cannot be used together.")
 
-        selection = wait_for_user_selection(
-            message="Choose bootup-splash-theme",
-            choices=themes
+    if cli_args.youtube:
+        yt = youtube.get_meta(url=cli_args.youtube)
+
+        video_length = yt.length
+        download_path = os.path.join(
+            os.getcwd(),
+            "results",
+            "yt",
+            f"{yt.title}.mp4"
+        )
+
+        if video_length > 0:  # valid
+
+            # ask user for timestamps to cut video
+            start_invalid = True
+            end_invalid = True
+            start = time.strptime(
+                "00:00:00",
+                "%H:%M:%S"
+            )
+            end = time.strptime(
+                "00:00:00",
+                "%H:%M:%S"
             )
 
-    else:
-        if os.path.isdir(cli_args.sourcepath):
-            mediafiles = []
+            seconds = end.tm_hour*3600+end.tm_min*60+end.tm_sec           
+            while end <= start or seconds > video_length:
+                while start_invalid:
+                    print("Please provide a valid START-timestamp formated like HH:MM:SS")
+                    starttimestamp = input()
 
-            # read available mediafiles from filesystem
-            for t in os.listdir(cli_args.sourcepath):
-                if helpers.validate(t) is not None:
-                    mediafiles.append(t)
+                    try:
+                        start = time.strptime(
+                            starttimestamp,
+                            "%H:%M:%S"
+                        )
+                        start_invalid = False
+                    except Exception as e:
+                        print(e)
+                        pass
+
+                while end_invalid:
+                    print("Please provide a valid END-timestamp formated like HH:MM:SS")
+                    endtimestamp = input()
+
+                    try:
+                        end = time.strptime(
+                            endtimestamp,
+                            "%H:%M:%S"
+                        )
+                        end_invalid = False
+                    except Exception as e:
+                        print(e)
+                        pass
+
+                # recalc total seconds
+                seconds = end.tm_hour*3600+end.tm_min*60+end.tm_sec
+
+            res = youtube.download(
+                url=cli_args.youtube,
+                start_timestamp=start,
+                end_timestamp=end
+            )
+            
+            if res:
+                # with alive_bar() as bar:
+                cutting_output_filepath = youtube.cut_video(
+                    input_filepath=download_path,
+                    start_timestamp=start,
+                    end_timestamp=end,
+                )
+                    
+                # bar()
+
+                if cutting_output_filepath is not None:
+                    create_animation_from_video(
+                        video_path=os.path.join(
+                            cutting_output_filepath,
+                        ),
+                        theme_name=cli_args.name,
+                    )
+
+    else:
+        if cli_args.sourcepath == themes_dir:
+            # let user select preinstalled themes
+
+            # read available themes from filesystem
+            themes = []
+            for t in os.listdir(themes_dir):
+                if os.path.isdir(os.path.join(themes_dir, t)):
+                    themes.append(t)
 
             selection = wait_for_user_selection(
                 message="Choose bootup-splash-theme",
-                choices=mediafiles
-                )
-
-            dest_file = os.path.join(cli_args.sourcepath, selection)
-        else:
-            dest_file = cli_args.sourcepath
-
-        # create animation
-        filetype = helpers.validate(dest_file)
-        if filetype == "image":
-
-            selection = wait_for_user_selection(
-                message="Animate given image from",
-                choices=["light-to-dark", "dark-to-light"]
-            )
-
-            create_animation_from_image(
-                input_path=dest_file,
-                theme_name=cli_args.name,
-                framecount=cli_args.framecount,
-                mode=selection
-            )
-
-        elif filetype == "video":
-            os.path.join(
-                os.getcwd(),
-                'results',
-                cli_args.name
-                )
-
-            create_animation_from_video(
-                framecount=cli_args.framecount,
-                theme_name=cli_args.name,
-                video_path=cli_args.sourcepath,
+                choices=themes
                 )
 
         else:
-            print("""
-                  Please select a valid filetype.
-                  Use [.png, .jpg] for animation from images
-                  or [.mp4, .avi, .mov] for animation from videos.
-                  """
-                  )
+            if os.path.isdir(cli_args.sourcepath):
+                mediafiles = []
+
+                # read available mediafiles from filesystem
+                for t in os.listdir(cli_args.sourcepath):
+                    if helpers.validate(t) is not None:
+                        mediafiles.append(t)
+
+                selection = wait_for_user_selection(
+                    message="Choose bootup-splash-theme",
+                    choices=mediafiles
+                    )
+
+                dest_file = os.path.join(cli_args.sourcepath, selection)
+            else:
+                dest_file = cli_args.sourcepath
+
+            # create animation
+            filetype = helpers.validate(dest_file)
+            if filetype == "image":
+
+                selection = wait_for_user_selection(
+                    message="Animate given image from",
+                    choices=["light-to-dark", "dark-to-light"]
+                )
+
+                create_animation_from_image(
+                    input_path=dest_file,
+                    theme_name=cli_args.name,
+                    framecount=cli_args.framecount,
+                    mode=selection
+                )
+
+            elif filetype == "video":
+                os.path.join(
+                    os.getcwd(),
+                    'results',
+                    cli_args.name
+                    )
+
+                create_animation_from_video(
+                    framecount=cli_args.framecount,
+                    theme_name=cli_args.name,
+                    video_path=cli_args.sourcepath,
+                    )
+
+            else:
+                print("""
+                    Please select a valid filetype.
+                    Use [.png, .jpg] for animation from images
+                    or [.mp4, .avi, .mov] for animation from videos.
+                    """
+                    )
 
     if cli_args.with_login_logo:
         logofile_path = read_userinput_with_autocompletion(
